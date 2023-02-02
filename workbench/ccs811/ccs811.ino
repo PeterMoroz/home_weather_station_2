@@ -34,19 +34,19 @@ void loop() {
   {
     float co2 = eco2;
     float tvoc = etvoc;
-    Serial.printf("loop: CO2 - %02.f ppm, TVOC - %02f ppb\n", co2, tvoc);
+    Serial.printf("CCS811: CO2 %02.f ppm, TVOC %02f ppb\n", co2, tvoc);
   }
   else if (errstat == CCS811_ERRSTAT_OK_NODATA)
   {
-    Serial.println("loop: waiting for (new) data...");
+    Serial.println("CCS811: waiting for (new) data...");
   }
   else if (errstat & CCS811_ERRSTAT_I2CFAIL)
   {
-    Serial.println("loop: I2C error");
+    Serial.println("CCS811: I2C error");
   }
   else if (errstat & CCS811_ERRSTAT_ERRORS)
   {
-    Serial.print("loop: error ");
+    Serial.print("CCS811: error ");
     Serial.print(errstat, HEX);
     Serial.print(" ");
     Serial.println(ccs811.errstat_str(errstat));
