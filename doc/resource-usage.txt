@@ -5,3 +5,11 @@ Global variables use 28456 bytes (34%) of dynamic memory, leaving 53464 bytes fo
 ----- CCS811
 Sketch uses 272133 bytes (26%) of program storage space. Maximum is 1044464 bytes.
 Global variables use 28724 bytes (35%) of dynamic memory, leaving 53196 bytes for local variables. Maximum is 81920 bytes.
+
+----- RTC DS3231
+Sketch uses 270713 bytes (25%) of program storage space. Maximum is 1044464 bytes.
+Global variables use 28512 bytes (34%) of dynamic memory, leaving 53408 bytes for local variables. Maximum is 81920 bytes.
+
+----- DHT22
+Sketch uses 266985 bytes (25%) of program storage space. Maximum is 1044464 bytes.
+Global variables use 28212 bytes (34%) of dynamic memory, leaving 53708 bytes for local variables. Maximum is 81920 bytes.
