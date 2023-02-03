@@ -8,7 +8,7 @@ if len(sys.argv) != 2:
 com = sys.argv[1]    
 print(f'Connecting to port {com}')
 
-port = serial.Serial(port='COM3', baudrate=115200, bytesize=8, timeout=2, stopbits=serial.STOPBITS_ONE)
+port = serial.Serial(port=com, baudrate=115200, bytesize=8, timeout=2, stopbits=serial.STOPBITS_ONE)
 
 file = open('output.txt', 'w')
 line = ''
