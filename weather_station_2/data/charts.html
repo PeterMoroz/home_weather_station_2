@@ -28,6 +28,11 @@ copies or substantial portions of the Software. -->
   <div id="chart-humidity" class="container"></div>
 </body>
 <script>
+Highcharts.setOptions({
+	time: {
+		timezoneOffset: -3 * 60
+	}
+});
 var chartT = new Highcharts.Chart({
   chart:{ renderTo : 'chart-temperature' },
   title: { text: 'Temperature' },
