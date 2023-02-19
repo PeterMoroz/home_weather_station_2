@@ -149,6 +149,26 @@ void setupRequestHandlersAP() {
       sprintf(data, "{ \"temperature\": \"%0.2f\", \"rh\": \"%0.2f\" }", ::temperature, ::humidity);
       request->send(200, "text/json", data);
     });
+
+
+  webServer.serveStatic("/", SPIFFS, "/");
+
+  webServer.on("/charts", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(SPIFFS, "/charts.html", "text/html");
+  });
+
+  webServer.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request) {
+    char buf[8] = { 0 };
+    sprintf(buf, "%0.2f", ::temperature);
+    request->send(200, "text/plain", buf);
+  });  
+
+  webServer.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request) {
+    char buf[8] = { 0 };
+    sprintf(buf, "%0.2f", ::humidity);
+    request->send(200, "text/plain", buf);
+  });
+      
 }
 
 void setupRequestHandlers() {
@@ -177,6 +197,26 @@ void setupRequestHandlers() {
     sprintf(data, "{ \"temperature\": \"%0.2f\", \"rh\": \"%0.2f\" }", ::temperature, ::humidity);
     request->send(200, "text/json", data);
   });
+
+
+  webServer.serveStatic("/", SPIFFS, "/");
+
+  webServer.on("/charts", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(SPIFFS, "/charts.html", "text/html");
+  });
+
+  webServer.on("/temperature", HTTP_GET, [](AsyncWebServerRequest *request) {
+    char buf[8] = { 0 };
+    sprintf(buf, "%0.2f", ::temperature);
+    request->send(200, "text/plain", buf);
+  });  
+
+  webServer.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request) {
+    char buf[8] = { 0 };
+    sprintf(buf, "%0.2f", ::humidity);
+    request->send(200, "text/plain", buf);
+  });
+
 }
 
 
@@ -236,7 +276,6 @@ void setup() {
     Serial.println("AHT10 begin failed.");
     while (1) ;
   }
-
 
   Serial.println("AHT10 - OK");
 
