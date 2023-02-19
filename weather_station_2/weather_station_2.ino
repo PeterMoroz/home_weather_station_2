@@ -5,7 +5,11 @@
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebSrv.h>
 
+#include <AHTxx.h>
+
 AsyncWebServer webServer(80);
+AHTxx aht10(AHTXX_ADDRESS_X38, AHT1x_SENSOR);
+
 
 #define EEPROM_SIZE 512
 #define SSID_SIZE 32
@@ -16,7 +20,7 @@ bool needRestart = false;
 float temperature = 0.f;
 float humidity = 0.f;
 
-unsigned long lastUpdateReadings = 0;
+unsigned long lastReadAHT10 = 0;
 #define UPDATE_READINGS_INTERVAL_MS 10000
 
 String wifiNetworks;
@@ -148,23 +152,6 @@ void setupRequestHandlersAP() {
 }
 
 void setupRequestHandlers() {
-
-/*
-    webServer.on("/setup", HTTP_GET, [](AsyncWebServerRequest *request) {
-      request->send(SPIFFS, "/setup.html", "text/html");
-    });
-
-    webServer.on("/wifissids", HTTP_GET, [](AsyncWebServerRequest *request) {
-
-      wifiNetworks = "{ \"RSSI\":[-69, -91, -74, -65, -70, -48, -90, -82, -83, -45, -64], " \
-        " \"SSID\":[\"TP-LINK_A322\", \"TP-Link_FD38\", \"TP-Link_5DB9\", \"HUAWEI-ebqn\", \"HUAWEI-2.4G-Fe3p\", \"linksys\", \"HUAWEI-4huh\", \"HUAWEI-2sMg\", \"byfly WIFI\", \"TP-Link_5497\", \"85-23 2.4\"], " \
-        " \"encrypted\":[1, 1, 1, 1, 1, 0, 1, 1, 0, 1, 1] } ";
-      Serial.println("WiFi networks: ");
-      Serial.println(wifiNetworks);
-      request->send(200, "text/json", wifiNetworks.c_str());
-    });
-
-    */  
   
   webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(SPIFFS, "/index.html", "text/html");
@@ -192,12 +179,70 @@ void setupRequestHandlers() {
   });
 }
 
+
+void printStatusAHT10() {
+  switch (aht10.getStatus()) {
+    case AHTXX_NO_ERROR:
+      Serial.println("AHT10: no error");
+      break;
+    case AHTXX_BUSY_ERROR:
+      Serial.println("AHT10: sensor busy, increase polling time");
+      break;
+    case AHTXX_ACK_ERROR:
+      Serial.println("AHT10: sensor didn't return ACK. not connected, broken, long wires (reduce speed), bus locked by slave (increase stretch limit)");
+      break;
+    case AHTXX_DATA_ERROR:
+      Serial.println("AHT10: received data smaller than expected. not connected, broken, long wires (reduce speed), bus locked by slave (increase stretch limit)");
+      break;
+    default:
+      Serial.println("AHT10: unknwon status");
+  }
+}
+
+bool readAHT10() {
+
+  float value = aht10.readTemperature();
+  if (value != AHTXX_ERROR) {
+    ::temperature = value;    
+  } else {
+    printStatusAHT10();
+    return false;
+  }
+
+  value = aht10.readHumidity(AHTXX_USE_READ_DATA);
+  if (value != AHTXX_ERROR) {
+    ::humidity = value;
+  } else {
+    printStatusAHT10();
+    return false;
+  }
+
+  lastReadAHT10 = millis();
+  return true;
+}
+
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
 
-  ::temperature = random(10, 30);
-  ::humidity = random(20, 50);
+  Wire.begin();
+  delay(100);
+
+  int attempt = 0;
+  while (!aht10.begin() && attempt++ < 10) {
+    delay(1000);
+  }
+  if (attempt == 10) {
+    Serial.println("AHT10 begin failed.");
+    while (1) ;
+  }
+
+
+  Serial.println("AHT10 - OK");
+
+  if (!readAHT10()) {
+    Serial.println("Could not get AHT10 readings.");
+  }
 
   EEPROM.begin(EEPROM_SIZE);
   delay(10);
@@ -258,9 +303,9 @@ void loop() {
     ESP.restart();
   }
 
-  if (millis() - lastUpdateReadings > UPDATE_READINGS_INTERVAL_MS) {
-    ::temperature = random(10, 30);
-    ::humidity = random(20, 50);
-    lastUpdateReadings = millis();
+  if (millis() - lastReadAHT10 > UPDATE_READINGS_INTERVAL_MS) {
+    if (!readAHT10()) {
+      Serial.println("Could not get AHT10 readings.");
+    }
   }
 }
