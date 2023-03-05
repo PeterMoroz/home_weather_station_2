@@ -1,0 +1,1 @@
+{"minTemperature": ["10"], "maxTemperature": ["40"], "minHumidity": ["20"], "maxHumidity": ["80"]}
