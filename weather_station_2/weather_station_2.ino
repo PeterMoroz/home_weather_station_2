@@ -3,7 +3,6 @@
 
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
-// #include <ESPAsyncWebSrv.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
 
@@ -201,6 +200,57 @@ void setupRequestHandlers() {
   webServer.on("/ranges", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(SPIFFS, "/ranges.html", "text/html");
   });  
+
+  webServer.on("/getranges", HTTP_GET, [](AsyncWebServerRequest *request) {
+    char data[96] = { 0 };
+    // Couldn't use 8-bit integers, because sscanf treats %d as int and corrupt stack if size of target variable doesn't match.
+    int minT = 0, maxT = 35;
+    int minH = 10, maxH = 90;
+    if (SPIFFS.exists("/ranges.txt")) {
+      File f = SPIFFS.open("/ranges.txt", "r");
+      char buf[16] = { 0 };
+      f.read((uint8_t*)buf, 12);
+      f.close();      
+      sscanf(buf, "%d %d %d %d", &minT, &maxT, &minH, &maxH);
+    }
+    sprintf(data, "{\"minTemperature\": %d, \"maxTemperature\": %d, \"minHumidity\": %d, \"maxHumidity\": %d}", minT, maxT, minH, maxH);
+    request->send(200, "text/json", data);
+  });
+
+  webServer.on("/setranges", HTTP_POST, [](AsyncWebServerRequest *request) {
+    int8_t minT = 0, maxT = 35;
+    uint8_t minH = 10, maxH = 90;
+    const int params = request->params();
+    for (int i = 0; i < params; i++) {
+      AsyncWebParameter *p = request->getParam(i);
+      if (p->isPost()) {
+        if (!strcmp(p->name().c_str(), "minTemperature")) {
+          minT = atoi(p->value().c_str());
+        }
+        if (!strcmp(p->name().c_str(), "maxTemperature")) {
+          maxT = atoi(p->value().c_str());
+        }
+        if (!strcmp(p->name().c_str(), "minHumidity")) {
+          minH = atoi(p->value().c_str());
+        }
+        if (!strcmp(p->name().c_str(), "maxHumidity")) {
+          maxH = atoi(p->value().c_str());
+        }
+      }
+    }
+
+    File f = SPIFFS.open("/ranges.txt", "w");
+    if (!f) {
+      request->send(500, "text/plain", "Couldn't store ranges.");
+      return;
+    }
+
+    char buf[16] = { 0 };
+    sprintf(buf, "%d %d %d %d", minT, maxT, minH, maxH);
+    f.write(buf, strlen(buf));    
+    f.close();
+    request->send(SPIFFS, "/ranges.html", "text/html");
+  });
 
   webServer.on("/data", HTTP_GET, [](AsyncWebServerRequest *request) {
     char data[64] = { 0 };
