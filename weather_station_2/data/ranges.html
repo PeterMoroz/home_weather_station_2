@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>The ranges</title>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<style>
+			html {
+				font-family: Arial, Helvetica, sans-serif;
+				display: inline-block;
+				text-align: center;
+			}
+			h1 {
+				font-size: 1.8rem;
+				color: #070812;
+			}
+			p {
+				font-size: 1.4rem;
+			}
+			body {
+				mrgin: 0;
+			}
+			.content {
+				padding: 5%;
+			}
+			.card-grid {
+				max-width: 800px;
+				margin: 0 auto;
+				display: grid;
+				grid-gap: 2rem;
+				grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));				
+			}
+			.card {
+				background-color: white;
+				box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5);
+			}
+			input[type=submit] {
+				border: none;
+				color: #FEFCFB;
+				background-color: #fa0505;
+				padding: 15px 15px;
+				text-align: center;
+				text-decoration: none;
+				display: inline-block;
+				font-size: 16px;
+				width: 100px;
+				margin-right: 10px;
+				border-radius: 4px;
+				transition-duration: 0.4s;
+			}
+			input[type=text], input[type=number], select {
+				width: 50%;
+				padding: 12px 20px;
+				margin: 18px;
+				display: inline-block;
+				border: 1px solid #ccc;
+				border-radius: 4px;
+				box-sizing: border-box;
+			}
+			label {
+				font-size: 1.2rem;
+			}
+			.value {
+				font-size: 1.2rem;
+				color: #1282A2;
+			}
+			
+			.slidercontainer {
+				width: 100%;
+			}
+			.slider {
+				-webkit-appearance: none;
+				width: 80%;
+				height: 15px;
+				border-radius: 5px;
+				background: #d3d3d3;
+				outline: none;
+				opacity: 0.7;
+				-webkit-transition: .2s;
+				transition: opacity .2s;
+			}
+			.slider::-webkit-slider-thumb {
+				-webkit-appearance: none;
+				appearance: none;
+				width: 25px;
+				height: 25px;
+				border-radius: 50%;
+				background: #04AA6D;
+				cursor: pointer;
+			}
+			.slider::-moz-range-thumb {
+				width: 25px;
+				height: 25px;
+				border-radius: 50%;
+				background: #04AA6D;
+				cursor: pointer;
+			}
+		</style>
+	</head>
+	
+	<body>
+		<h1>The temperature and humidity ranges</h1>
+		<div class="content">
+			<div class="card-grid">
+				<div class="card">
+					<form action="/setranges" method="post">
+						<p>
+							<div class="slidercontainer">
+								<input type="range" min="-10" max="40" value="10" class="slider" id="min-t" name="minTemperature">
+								<p>Min. Temperature: <span id="min-temperature"></span></p>
+							</div>
+							<br>
+							<div class="slidercontainer">
+								<input type="range" min="0" max="50" value="30" class="slider" id="max-t" name="maxTemperature">
+								<p>Max. Temperature: <span id="max-temperature"></span></p>
+							</div>
+							<br>
+							<div class="slidercontainer">
+								<input type="range" min="0" max="100" value="20" class="slider" id="min-h" name="minHumidity">
+								<p>Min. Humidity: <span id="min-humidity"></span></p>
+							</div>
+							<br>
+							<div class="slidercontainer">
+								<input type="range" min="0" max="100" value="70" class="slider" id="max-h" name="maxHumidity">
+								<p>Max. Humidity: <span id="max-humidity"></span></p>
+							</div>
+							<br>
+							<input type="submit" value="Submit">
+						</p>
+					</form>
+				</div>
+			</div>
+		</div>
+		
+		<script>
+			function loadValues() {
+				var xmlhttp = new XMLHttpRequest();
+				xmlhttp.onreadystatechange = function() {
+					if (this.readyState == 4 && this.status == 200) {
+						console.log('responseText = ' + this.responseText);
+						var myObj = JSON.parse(this.responseText);
+						// var myObj = JSON.parse('{"minTemperature": 0, "maxTemperature": 35, "minHumidity": 10, "maxHumidity": 90}');						
+						var slider1 = document.getElementById('min-t');
+						var slider2 = document.getElementById('max-t');
+						var slider3 = document.getElementById('min-h');
+						var slider4 = document.getElementById('max-h');
+												
+						slider1.value = myObj.minTemperature;
+						slider2.value = myObj.maxTemperature;
+						slider3.value = myObj.minHumidity;
+						slider4.value = myObj.maxHumidity;						
+						
+						var output1 = document.getElementById('min-temperature');
+						var output2 = document.getElementById('max-temperature');
+						var output3 = document.getElementById('min-humidity');
+						var output4 = document.getElementById('max-humidity');
+						
+						output1.innerHTML = myObj.minTemperature;
+						output2.innerHTML = myObj.maxTemperature;
+						output3.innerHTML = myObj.minHumidity;
+						output4.innerHTML = myObj.maxHumidity;
+					}
+				}
+				
+				xmlhttp.open('GET', '/getranges');
+				xmlhttp.send();
+			}
+			
+			loadValues();
+			
+			var slider1 = document.getElementById('min-t');
+			var output1 = document.getElementById('min-temperature');
+			output1.innerHTML = slider1.value;
+			slider1.oninput = function() {
+				output1.innerHTML = this.value;
+			}
+			
+			var slider2 = document.getElementById('max-t');
+			var output2 = document.getElementById('max-temperature');
+			output2.innerHTML = slider2.value;
+			slider2.oninput = function() {
+				output2.innerHTML = this.value;
+			}
+			
+			var slider3 = document.getElementById('min-h');
+			var output3 = document.getElementById('min-humidity');
+			output3.innerHTML = slider3.value;
+			slider3.oninput = function() {
+				output3.innerHTML = this.value;
+			}
+			
+			var slider4 = document.getElementById('max-h');
+			var output4 = document.getElementById('max-humidity');
+			output4.innerHTML = slider4.value;
+			slider4.oninput = function() {
+				output4.innerHTML = this.value;
+			}
+		</script>		
+	</body>	
+</html>

@@ -3,7 +3,9 @@
 
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
-#include <ESPAsyncWebSrv.h>
+// #include <ESPAsyncWebSrv.h>
+#include <ESPAsyncWebServer.h>
+#include <AsyncElegantOTA.h>
 
 #include <AHTxx.h>
 
@@ -83,72 +85,76 @@ bool storeWiFiCredentials(const char* ssid, const char* pass) {
 
 void setupRequestHandlersAP() {
 
-    webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-      request->send(SPIFFS, "/setup.html", "text/html");
-    });
+  webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(SPIFFS, "/setup.html", "text/html");
+  });
 
-    webServer.on("/wifissids", HTTP_GET, [](AsyncWebServerRequest *request) {
-      Serial.println("WiFi networks: ");
-      Serial.println(wifiNetworks);
-      request->send(200, "text/json", wifiNetworks.c_str());
-    });
+  webServer.on("/wifissids", HTTP_GET, [](AsyncWebServerRequest *request) {
+    Serial.println("WiFi networks: ");
+    Serial.println(wifiNetworks);
+    request->send(200, "text/json", wifiNetworks.c_str());
+  });
 
-    webServer.on("/direct", HTTP_GET, [](AsyncWebServerRequest *request) {
-      request->send(SPIFFS, "/index.html", "text/html");
-    });
+  webServer.on("/direct", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(SPIFFS, "/index.html", "text/html");
+  });
 
-    webServer.on("/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
-      request->send(SPIFFS, "/reset.html", "text/html");
-    });
+  webServer.on("/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(SPIFFS, "/reset.html", "text/html");
+  });
 
-    webServer.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {
-      request->send(SPIFFS, "/reboot.html", "text/html");
-      needRestart = true;
-    });
+  webServer.on("/reboot", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(SPIFFS, "/reboot.html", "text/html");
+    needRestart = true;
+  });
 
-    webServer.on("/clearmem", HTTP_GET, [](AsyncWebServerRequest *request) {
-      request->send(SPIFFS, "/clear.html", "text/html");
-      clearMemory();
-      needRestart = true;
-    });
+  webServer.on("/ranges", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(SPIFFS, "/ranges.html", "text/html");
+  });  
 
-    webServer.on("/setting", HTTP_POST, [](AsyncWebServerRequest *request) {
-      char ssid[SSID_SIZE] = { 0 };
-      char pass[PASS_SIZE] = { 0 };
-      const int params = request->params();
-      for (int i = 0; i < params; i++) {
-        AsyncWebParameter *p = request->getParam(i);
-        if (p->isPost()) {
-          if (!strcmp(p->name().c_str(), "ssid")) {
-            p->value().toCharArray(ssid, SSID_SIZE);
-          }
-          if (!strcmp(p->name().c_str(), "pass")) {
-            p->value().toCharArray(pass, PASS_SIZE);
-          }
+  webServer.on("/clearmem", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(SPIFFS, "/clear.html", "text/html");
+    clearMemory();
+    needRestart = true;
+  });
+
+  webServer.on("/setting", HTTP_POST, [](AsyncWebServerRequest *request) {
+    char ssid[SSID_SIZE] = { 0 };
+    char pass[PASS_SIZE] = { 0 };
+    const int params = request->params();
+    for (int i = 0; i < params; i++) {
+      AsyncWebParameter *p = request->getParam(i);
+      if (p->isPost()) {
+        if (!strcmp(p->name().c_str(), "ssid")) {
+          p->value().toCharArray(ssid, SSID_SIZE);
+        }
+        if (!strcmp(p->name().c_str(), "pass")) {
+          p->value().toCharArray(pass, PASS_SIZE);
         }
       }
+    }
 
-      if (strlen(ssid) == 0 || strlen(pass) == 0) {
-        request->send(400, "text/plain", "Missed SSID and/or password.");
-        return;
-      }
+    if (strlen(ssid) == 0 || strlen(pass) == 0) {
+      request->send(400, "text/plain", "Missed SSID and/or password.");
+      return;
+    }
 
-      const bool success = storeWiFiCredentials(ssid, pass);
+    const bool success = storeWiFiCredentials(ssid, pass);
 
-      if (success) {
-        request->send(SPIFFS, "/setting.html", "text/html");
-        needRestart = true;
-      } else {
-        request->send(500, "text/plain", "Couldn't store settings in EEPROM.");
-      }
+    if (success) {
+      request->send(SPIFFS, "/setting.html", "text/html");
+      needRestart = true;
+    } else {
+      request->send(500, "text/plain", "Couldn't store settings in EEPROM.");
+    }
 
-    });
+  });
 
-    webServer.on("/data", HTTP_GET, [](AsyncWebServerRequest *request) {
-      char data[64] = { 0 };
-      sprintf(data, "{ \"temperature\": \"%0.2f\", \"rh\": \"%0.2f\" }", ::temperature, ::humidity);
-      request->send(200, "text/json", data);
-    });
+  webServer.on("/data", HTTP_GET, [](AsyncWebServerRequest *request) {
+    char data[64] = { 0 };
+    sprintf(data, "{ \"temperature\": \"%0.2f\", \"rh\": \"%0.2f\" }", ::temperature, ::humidity);
+    request->send(200, "text/json", data);
+  });
 
 
   webServer.serveStatic("/", SPIFFS, "/");
@@ -191,6 +197,10 @@ void setupRequestHandlers() {
     request->send(SPIFFS, "/reboot.html", "text/html");
     needRestart = true;
   });
+
+  webServer.on("/ranges", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(SPIFFS, "/ranges.html", "text/html");
+  });  
 
   webServer.on("/data", HTTP_GET, [](AsyncWebServerRequest *request) {
     char data[64] = { 0 };
@@ -332,6 +342,7 @@ void setup() {
     setupRequestHandlers();
   }
 
+  AsyncElegantOTA.begin(&webServer);
   webServer.begin();
 }
 
