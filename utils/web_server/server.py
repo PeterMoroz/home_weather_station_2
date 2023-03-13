@@ -1,5 +1,5 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
-# import logging
+import logging
 from urllib.parse import parse_qs
 from os import path
 import json
