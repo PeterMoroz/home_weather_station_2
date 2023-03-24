@@ -1,11 +1,19 @@
 #include <EEPROM.h>
 #include <FS.h>
 
+
+// #include <DS1307RTC.h>
+
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
 
+/* 
+ *  Don't place the following header after AHTxx one!
+ *  I observed unexpected crashes during startup.
+ */
+#include <DS1307RTC.h>
 #include <AHTxx.h>
 
 AsyncWebServer webServer(80);
@@ -29,8 +37,27 @@ int8_t maxHumidity = 60;
 unsigned long lastReadAHT10 = 0;
 #define UPDATE_READINGS_INTERVAL_MS 10000
 
+const char* monthNames[12] = {
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+};
+
 String wifiNetworks;
 
+enum DisplayState {
+  DisplayNone,
+  DisplayDateTime,
+  DisplayTemperatureHumidity,
+};
+
+#define UPDATE_DISPLAY_STATE_INTERVAL_MS 5000
+DisplayState displayState = DisplayNone;
+unsigned long lastUpdateDisplayState = 0;
+
+
+////////////////////////////////////////////////////////////////////////////////
+// WiFi
+//
 void scanWiFiNetworks() {
   int n = WiFi.scanNetworks();
   String ssid("\"SSID\":["), rssi("\"RSSI\":["), encrypted("\"encrypted\":[");
@@ -63,6 +90,9 @@ bool checkWiFiConnection() {
   return false;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// EEPROM
+//
 void clearMemory() {
   for (int i = 0; i < (SSID_SIZE + PASS_SIZE); i++) {
     EEPROM.write(i, 0);
@@ -87,6 +117,9 @@ bool storeWiFiCredentials(const char* ssid, const char* pass) {
   return success;
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// HTTP handlers for AP mode
+//
 void setupRequestHandlersAP() {
 
   webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -181,6 +214,9 @@ void setupRequestHandlersAP() {
       
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// HTTP handlers for station mode
+//
 void setupRequestHandlers() {
   
   webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -284,7 +320,9 @@ void setupRequestHandlers() {
 
 }
 
-
+////////////////////////////////////////////////////////////////////////////////
+// AHT10 (temperature/humidity sensor)
+//
 void printStatusAHT10() {
   switch (aht10.getStatus()) {
     case AHTXX_NO_ERROR:
@@ -326,12 +364,139 @@ bool readAHT10() {
   return true;
 }
 
+void displayTemperatureHumidity() {
+  char buf[64] = { 0 };
+  sprintf(buf, "temperature: %0.2f degrees, humidity: %0.2f percentage", ::temperature, ::humidity);
+  Serial.println(buf);  
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// RTC
+//
+bool parseDateTime(const char* strDate, const char* strTime, tmElements_t& tm) {
+  char monthName[12] = { 0 };
+  int day = 0, year = 0;
+  uint8_t monthIndex = 0;
+
+  Serial.printf("Parse date: %s\n", strDate);
+  if (sscanf(strDate, "%s %d %d", &monthName, &day, &year) != 3) {
+    return false;
+  }
+
+  for (; monthIndex < 12; monthIndex++) {
+    if (!strcmp(monthName, monthNames[monthIndex])) {
+      break;
+    }
+  }
+
+  if (monthIndex >= 12) {
+    return false;
+  }
+
+  tm.Day = day;
+  tm.Month = monthIndex + 1;
+  tm.Year = CalendarYrToTm(year);
+
+  int hour = 0, minute = 0, second = 0;
+  Serial.printf("Parse time: %s\n", strTime);
+  if (sscanf(strTime, "%d:%d:%d", &hour, &minute, &second) != 3) {
+    return false;
+  }
+
+  tm.Hour = hour;
+  tm.Minute = minute;
+  tm.Second = second;
+  return true;  
+}
+
+bool setupRTC() {
+  tmElements_t tm;
+  uint8_t attempt = 10;
+  while (!RTC.read(tm)) {
+    ++attempt;
+    if (RTC.chipPresent()) {
+      Serial.println("The DS1307 is stopped. Going to setup it ...");      
+      if (!parseDateTime(__DATE__, __TIME__, tm)) {
+        Serial.println("Could not parse date/time");
+        return false;
+      }
+
+      if (!RTC.write(tm)) {
+        Serial.println("Could not write timestruct into RTC");
+      }
+    } else {
+      Serial.println("DS1307 hardware error.");
+      return false;
+    }
+    if (attempt == 10) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void displayDateTime() {
+  tmElements_t tm;
+  if (RTC.read(tm)) {
+    char buf[24] = { 0 };
+    sprintf(buf, "%02d/%02d/%04d %02d:%02d:%02d",
+      tm.Day, tm.Month, tm.Year + 1970, tm.Hour, tm.Minute, tm.Second);
+    Serial.println(buf);
+  } else {
+    Serial.println("RTC read failed.");
+  }  
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Display state machine
+//
+void updateDisplayState() {
+  if (millis() - lastUpdateDisplayState > UPDATE_DISPLAY_STATE_INTERVAL_MS) {
+
+    switch (displayState) {
+      case DisplayNone:
+        displayState = DisplayDateTime;
+        break;
+      case DisplayDateTime:
+        displayState = DisplayTemperatureHumidity;
+        break;
+      case DisplayTemperatureHumidity:
+        displayState = DisplayDateTime;
+        break;
+      default:
+        Serial.println("Unknown DisplayState");
+    }
+
+    switch (displayState) {
+      case DisplayDateTime:
+        displayDateTime();
+        break;
+      case DisplayTemperatureHumidity:
+        displayTemperatureHumidity();
+        break;
+      default:
+        Serial.println("Unknown DisplayState");
+    }    
+
+    lastUpdateDisplayState = millis();
+  }  
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// ESP8266 (setup amd mainloop)
+//
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
 
   Wire.begin();
   delay(100);
+
+  Serial.println("Going to setup RTC...");
+  if (!setupRTC()) {
+    Serial.println("RTC setup failed.");
+    while (1) ;
+  }
 
   int attempt = 0;
   while (!aht10.begin() && attempt++ < 10) {
@@ -425,4 +590,6 @@ void loop() {
       Serial.println("Could not get AHT10 readings.");
     }
   }
+
+  updateDisplayState();
 }
