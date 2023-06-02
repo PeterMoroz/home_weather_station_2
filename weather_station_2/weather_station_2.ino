@@ -1,24 +1,25 @@
 #include <EEPROM.h>
 #include <FS.h>
 
-
-// #include <DS1307RTC.h>
-
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
 
 /* 
- *  Don't place the following header after AHTxx one!
+ *  Don't change the order of the header files below!
  *  I observed unexpected crashes during startup.
  */
 #include <DS1307RTC.h>
 #include <AHTxx.h>
 
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
 AsyncWebServer webServer(80);
 AHTxx aht10(AHTXX_ADDRESS_X38, AHT1x_SENSOR);
 
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 #define EEPROM_SIZE 512
 #define SSID_SIZE 32
@@ -367,7 +368,16 @@ bool readAHT10() {
 void displayTemperatureHumidity() {
   char buf[64] = { 0 };
   sprintf(buf, "temperature: %0.2f degrees, humidity: %0.2f percentage", ::temperature, ::humidity);
-  Serial.println(buf);  
+  Serial.println(buf);
+
+  lcd.clear();
+  sprintf(buf, "temperature %0.2f degrees", ::temperature);
+  lcd.setCursor(0, 0);
+  lcd.print(buf);
+
+  sprintf(buf, "humidity %0.2f %%", ::humidity);
+  lcd.setCursor(0, 1);  // col, row
+  lcd.print(buf);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -442,6 +452,16 @@ void displayDateTime() {
     sprintf(buf, "%02d/%02d/%04d %02d:%02d:%02d",
       tm.Day, tm.Month, tm.Year + 1970, tm.Hour, tm.Minute, tm.Second);
     Serial.println(buf);
+
+    lcd.clear();
+    sprintf(buf, "Date %02d/%02d/%04d", tm.Day, tm.Month, tm.Year + 1970);
+    lcd.setCursor(0, 0);
+    lcd.print(buf);
+
+    sprintf(buf, "Time %02d:%02d:%02d", tm.Hour, tm.Minute, tm.Second);
+    lcd.setCursor(0, 1);  // col, row
+    lcd.print(buf);
+    
   } else {
     Serial.println("RTC read failed.");
   }  
@@ -547,7 +567,14 @@ void setup() {
     maxTemperature = buf[1];
     minHumidity = buf[2];
     maxHumidity = buf[3];
-  }  
+  }
+
+  lcd.init();
+  lcd.backlight();
+  lcd.setCursor(0, 0);
+  lcd.print("Weather Station");
+  lcd.setCursor(0, 1);  // col, row
+  lcd.print("  2nd edition  ");
 
   WiFi.mode(WIFI_STA);
   delay(200);
