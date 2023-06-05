@@ -1,10 +1,19 @@
 #include <EEPROM.h>
 #include <FS.h>
 
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+
 #include <ESP8266WiFi.h>
 #include <ESPAsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
+
+
+#define UTC_OFFSET_SECONDS (3600 * 3)
+
+WiFiUDP udp;
+NTPClient ntpClient(udp, "pool.ntp.org", UTC_OFFSET_SECONDS);
 
 /* 
  *  Don't change the order of the header files below!
@@ -37,6 +46,10 @@ int8_t maxHumidity = 60;
 
 unsigned long lastReadAHT10 = 0;
 #define UPDATE_READINGS_INTERVAL_MS 10000
+
+unsigned long lastTimeUpdate = 0;
+#define UPDATE_TIME_INTERVAL_MS (3600 * 1000)
+
 
 const char* monthNames[12] = {
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -467,6 +480,33 @@ void displayDateTime() {
   }  
 }
 
+void updateTime() {
+  ntpClient.update();
+  time_t epochTime = ntpClient.getEpochTime();
+  struct tm* ptm = gmtime(&epochTime);
+
+/*
+  Serial.printf("NTP\t%04d/%02d/%02d - %02d:%02d:%02d\n",
+    ptm->tm_year + 1900, ptm->tm_mon, ptm->tm_mday, 
+    ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+    */
+
+  tmElements_t tm;
+  tm.Day = ptm->tm_mday;
+  tm.Month = ptm->tm_mon + 1;
+  tm.Year = ptm->tm_year - 70; // ptm->tm_year + 1900 - 1970
+
+  tm.Hour = ptm->tm_hour;
+  tm.Minute = ptm->tm_min;
+  tm.Second = ptm->tm_sec;
+
+  if (!RTC.write(tm)) {
+    Serial.println("Could not write timestruct into RTC");
+  }
+
+  lastTimeUpdate = millis();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Display state machine
 //
@@ -616,6 +656,10 @@ void loop() {
     if (!readAHT10()) {
       Serial.println("Could not get AHT10 readings.");
     }
+  }
+
+  if (millis() - lastTimeUpdate > UPDATE_TIME_INTERVAL_MS) {
+    updateTime();
   }
 
   updateDisplayState();
